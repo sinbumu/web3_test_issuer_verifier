@@ -14,8 +14,8 @@ curl -X POST http://localhost:3000/api/issuer/mint \
    -H "Content-Type: application/json" \
    -d '{
       "uri": "https://example.com/resource",
-      "tokenId": "112345",
-      "pTokenId": "67890"
+      "tokenId": "90909091",
+      "pTokenId": "111111112"
    }'
 ```
 요청 예시:
@@ -67,7 +67,17 @@ tokenId: 소각할 토큰의 고유 ID (필수)
    "transactionHash": "0xabc123...def456"
 }
 ```
+### 기타
 
+ClaimURI 조회
+```
+curl -X GET http://localhost:3000/api/issuer/claimURI/90909091
+```
+
+ClaimHash 조회
+```
+curl -X GET http://localhost:3000/api/issuer/claimHash/90909091
+```
 
 ## src/routes/verifierRoutes.js
 엔드포인트: GET /api/verifier/verify
