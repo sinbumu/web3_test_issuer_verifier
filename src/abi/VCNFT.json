@@ -143,5 +143,47 @@
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_tokenId",
+          "type": "uint256"
+        }
+      ],
+      "name": "credential",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "string",
+              "name": "ClaimURI",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "ClaimHash",
+              "type": "string"
+            },
+            {
+              "internalType": "address",
+              "name": "Issuer",
+              "type": "address"
+            },
+            {
+              "internalType": "uint256",
+              "name": "IssuerTokenID",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct VCNFT.Credential",
+          "name": "",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function",
+      "constant": true
     }
 ]

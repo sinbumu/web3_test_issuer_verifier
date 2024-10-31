@@ -14,7 +14,7 @@ curl -X POST http://localhost:3000/api/issuer/mint \
    -H "Content-Type: application/json" \
    -d '{
       "uri": "https://example.com/resource",
-      "tokenId": "90909091",
+      "tokenId": "90909093",
       "pTokenId": "111111112"
    }'
 ```
@@ -50,7 +50,7 @@ burn API는 tokenId를 필수로 받습니다.
 curl -X POST http://localhost:3000/api/issuer/burn \
    -H "Content-Type: application/json" \
    -d '{
-      "tokenId": "112345"
+      "tokenId": "90909091"
    }'
 
 ```
@@ -67,6 +67,22 @@ tokenId: 소각할 토큰의 고유 ID (필수)
    "transactionHash": "0xabc123...def456"
 }
 ```
+### Credential 조회
+```
+curl -X GET http://localhost:3000/api/issuer/credential/90909093
+```
+
+### TransferFrom 전송
+```
+curl -X POST http://localhost:3000/api/issuer/transfer \
+-H "Content-Type: application/json" \
+-d '{
+    "from": "0xSenderAddress",
+    "to": "0xReceiverAddress",
+    "tokenId": "90909091"
+}'
+```
+
 ### 기타
 
 ClaimURI 조회
