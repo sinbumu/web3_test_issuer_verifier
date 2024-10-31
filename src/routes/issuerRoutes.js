@@ -27,6 +27,9 @@ const exampleCredential = {
 };
 
 // 해시 생성 함수
+// 현재는 Credential이 어떤 데이터 포멧을 가지나 이런게 전혀 없기 때문에
+// 그냥 받은 데이터 무조건 web3의 sha3 유틸로 해시화.
+// 후에 구체화 되면 조건문 등 들어갈 수 있음.
 const generateHash = (data) => {
     return web3.utils.sha3(JSON.stringify(data));
 };
@@ -40,8 +43,7 @@ router.post('/mint', async (req, res) => {
     }
 
     try {
-        const credentialData = { ...exampleCredential, tokenId };
-        const hash = generateHash(credentialData);
+        const hash = generateHash(exampleCredential);//exampleCredential 로 hash 만드는 예.
         const password = crypto.randomBytes(4).toString('hex');
 
         // MongoDB API 서버에 데이터 저장 요청
