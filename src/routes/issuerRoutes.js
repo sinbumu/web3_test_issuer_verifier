@@ -1,4 +1,5 @@
 const express = require('express');
+const bcrypt = require('bcrypt');
 const Web3 = require('web3').Web3;
 const axios = require('axios');
 const crypto = require('crypto');
@@ -45,6 +46,12 @@ router.post('/mint', async (req, res) => {
     try {
         const hash = generateHash(exampleCredential);//exampleCredential 로 hash 만드는 예.
         const password = crypto.randomBytes(4).toString('hex');
+        // 비밀번호 해시화
+        let hashedPassword = null;
+        if (password) {
+           const saltRounds = 10;
+           hashedPassword = await bcrypt.hash(password, saltRounds);
+        }
 
         // MongoDB API 서버에 데이터 저장 요청
         await axios.post(`${MONGODB_API_URL}/api/credentials`, {
@@ -52,7 +59,7 @@ router.post('/mint', async (req, res) => {
             tokenId,
             pTokenId: pTokenId || null,
             credential: credentialData,
-            password: password,
+            password: hashedPassword,//몽고엔 hash값만 저장
             hash: hash
         });
 
