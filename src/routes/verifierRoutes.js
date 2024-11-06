@@ -1,9 +1,23 @@
 const express = require('express');
+const Web3 = require('web3').Web3;
 const axios = require('axios');
+const fs = require('fs');
 const router = express.Router();
 
 require('dotenv').config();
 const MONGODB_API_URL = process.env.MONGODB_API_URL;
+const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS;
+
+const web3 = new Web3('http://127.0.0.1:8545');
+
+// ABI 설정 및 컨트랙트 초기화
+const contractABI = JSON.parse(fs.readFileSync('./src/abi/VCNFT.json', 'utf-8'));
+const contract = new web3.eth.Contract(contractABI, CONTRACT_ADDRESS);
+
+// 해시 생성 함수
+const generateHash = (data) => {
+    return web3.utils.sha3(JSON.stringify(data));
+};
 
 // 1. Verify (검증) API
 router.get('/verify', async (req, res) => {
@@ -15,26 +29,43 @@ router.get('/verify', async (req, res) => {
     }
 
     try {
-        // MongoDB API 서버에서 기본 tokenId로 데이터 조회
-        let queryUrl = `${MONGODB_API_URL}/api/credentials?tokenId=${tokenId}`;
+        // Web3를 통해 컨트랙트에서 데이터 가져오기
+        const credentialData = await contract.methods.credential(tokenId).call();
+        const { ClaimURI, ClaimHash, Issuer, IssuerTokenID } = credentialData;
+        console.log('credentialData : ', credentialData);
+
+        // MongoDB API 서버에서 tokenId로 데이터 조회
+        let queryUrl = `${ClaimURI}?tokenId=${tokenId}`;
         if (password) {
             queryUrl += `&password=${password}`;
         }
-        
         const response = await axios.get(queryUrl);
-        const credentialData = response.data;
+        const mongoCredentialData = response.data;
 
-        // pTokenId가 있는 경우 부모 데이터 추가 조회
-        let parentData = null;
-        if (credentialData.pTokenId) {
-            const parentResponse = await axios.get(`${MONGODB_API_URL}/api/credentials?tokenId=${credentialData.pTokenId}`);
-            parentData = parentResponse.data;
+        console.log('MongoDB response data:', mongoCredentialData);
+
+        // MongoDB에서 가져온 Claim 데이터 확인
+        if (!mongoCredentialData.credential || !mongoCredentialData.credential.Claim) {
+            console.error('Claim data not found in MongoDB response');
+            return res.status(400).json({ error: 'Claim 데이터가 없습니다.' });
+        }
+        const mongoClaim = mongoCredentialData.credential.Claim;
+
+        // 무결성 체크: MongoDB에서 가져온 Claim 데이터를 해시화하여 컨트랙트의 claimHash와 비교
+        const computedHash = generateHash(mongoClaim);
+        if (computedHash !== ClaimHash) {
+            return res.status(400).json({ error: '무결성 체크 실패: 데이터가 손상되었습니다.' });
         }
 
-        // 응답 데이터 형식: 기본 데이터 + (optional) 부모 데이터
+        // 응답 데이터 형식: MongoDB 데이터와 Web3에서 가져온 정보 포함
         const result = {
-            credential: credentialData,
-            parentCredential: parentData || null
+            credential: mongoCredentialData.credential,
+            web3Data: {
+                ClaimURI,
+                ClaimHash,
+                Issuer,
+                IssuerTokenID: IssuerTokenID.toString() // BigInt를 문자열로 변환
+            }
         };
 
         res.status(200).json(result);
@@ -50,5 +81,6 @@ router.get('/verify', async (req, res) => {
         }
     }
 });
+
 
 module.exports = router;

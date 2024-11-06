@@ -55,25 +55,43 @@ Postman 또는 curl 명령어를 사용하여 API 요청을 테스트할 수 있
 Endpoint: POST /api/issuer/mint
 
 설명:
+mint API는 다음과 같은 필수 파라미터를 받습니다:
 
-mint API는 uri와 tokenId를 필수 파라미터로 받고, 선택적으로 pTokenId를 받을 수 있습니다.
-요청이 성공하면 tokenId, transactionHash, password, hash를 반환하여, 클라이언트가 password와 hash 값을 보관하고 이후 검증에 사용할 수 있습니다.
+- uri: 인증서 URI
+- tokenId: 토큰의 고유 ID
+- ItokenId: 부모 토큰 ID
+- password: 클라이언트가 설정할 암호 (이후 검증에 사용)
+- Claim: 인증서 데이터 객체 (JSON 형식)
+- to: 민팅할 대상 주소 (ERC-721 토큰을 받을 주소)
+
+요청이 성공하면 tokenId, transactionHash, password, claimHash 값을 반환합니다. 
+
+반환된 password와 claimHash 값은 클라이언트가 저장해 두어 이후 검증에 사용할 수 있습니다.
+
+#### 요청 예시
 ```
 curl -X POST http://localhost:3000/api/issuer/mint \
    -H "Content-Type: application/json" \
    -d '{
-      "uri": "https://example.com/resource",
-      "tokenId": "90909093",
-      "pTokenId": "111111112"
+      "uri": "http://3.34.178.233:3000/api/credentials",
+      "tokenId": "90909169",
+      "password": "mysecretpassword",
+      "Claim": {
+         "name": "Example Credential",
+         "type": "ExampleType"
+      },
+      "to": "0x3488dDf18de8dBD52Ac9Cb95E2685185D90663F5",
+      "ItokenId": "111111116"
    }'
 ```
-요청 예시:
+요청 파라미터:
 
-uri: 인증서 URI (필수)
-
-tokenId: 토큰의 고유 ID (필수)
-
-pTokenId: 부모 토큰 ID (옵셔널)
+- uri: 인증서 URI (필수)
+- tokenId: 토큰의 고유 ID (필수)
+- password: 사용자 정의 암호 (필수)
+- Claim: 인증서 데이터 객체, JSON 형식으로 다양한 데이터를 포함할 수 있음 (필수)
+- to: 토큰을 받을 대상 주소 (필수)
+- ItokenId: 부모 토큰 ID (선택적)
 
 ```
 //응답 예
@@ -82,7 +100,7 @@ pTokenId: 부모 토큰 ID (옵셔널)
    "tokenId": "112345",
    "transactionHash": "0xabc123...def456",
    "password": "generatedpassword",
-   "hash": "hashvalue12345"
+   "claimHash": "hashvalue12345"
 }
 ```
 
@@ -99,7 +117,7 @@ burn API는 tokenId를 필수로 받습니다.
 curl -X POST http://localhost:3000/api/issuer/burn \
    -H "Content-Type: application/json" \
    -d '{
-      "tokenId": "90909091"
+      "tokenId": "90909166"
    }'
 
 ```
@@ -118,7 +136,7 @@ tokenId: 소각할 토큰의 고유 ID (필수)
 ```
 ### Credential 조회
 ```
-curl -X GET http://localhost:3000/api/issuer/credential/90909093
+curl -X GET http://localhost:3000/api/issuer/credential/90909168
 ```
 
 ### TransferFrom 전송
@@ -164,7 +182,7 @@ tokenId와 선택적인 password를 기반으로 MongoDB API 서버에 조회 �
 curl -X GET "http://localhost:3000/api/verifier/verify?tokenId=112345"
 
 //있는 경우
-curl -X GET "http://localhost:3000/api/verifier/verify?tokenId=112345&password=mysecretpassword"
+curl -X GET "http://localhost:3000/api/verifier/verify?tokenId=90909168&password=mysecretpassword"
 ```
 ```
 //응답 예시 
