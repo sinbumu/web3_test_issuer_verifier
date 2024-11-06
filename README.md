@@ -1,5 +1,54 @@
 # 프젝 설명
 ERC 제의 관련 컨트랙트를 테스트 하기 위한 issuer와 verify역할을 하는 서버
+이 프로젝트는 Issuer와 Verifier 역할을 하는 API 서버입니다. 블록체인 네트워크와 상호작용하여 토큰을 발행(mint), 소각(burn), 전송(transfer)하거나 자격 증명 데이터를 조회할 수 있는 기능을 제공합니다. 이 API는 Node.js 환경에서 실행됩니다.
+
+주요 기능
+```
+토큰 발행 (Mint): 블록체인 상에서 새로운 자격 증명 토큰을 생성
+토큰 소각 (Burn): 특정 토큰을 소각하여 무효화
+토큰 전송 (Transfer): 소유자의 권한으로 다른 계정으로 토큰 전송
+자격 증명 조회 (Credential): 특정 토큰에 대한 자격 증명 정보 조회
+```
+요구사항
+```
+Node.js: v14 이상
+NPM (Node 패키지 관리자): Node.js 설치 시 포함됨
+MongoDB: MongoDB API 서버가 필요 (프로젝트의 .env 파일에 MONGODB_API_URL 설정 필요)
+Web3 Provider: 블록체인 네트워크에 연결할 Infura 등의 Web3 provider가 필요 (.env 파일에서 설정)
+```
+
+설치 및 실행 방법
+
+프로젝트 클론
+
+```
+git clone https://github.com/your-repository/issuer-verifier-api.git
+cd issuer-verifier-api
+```
+
+필수 환경 변수 설정 프로젝트 루트에 .env 파일을 생성하고 아래 내용을 추가합니다.
+
+```
+MONGODB_API_URL=your_mongodb_api_server_url
+ETHEREUM_MAINNET=https://mainnet.infura.io/v3/your_infura_project_id
+ETHEREUM_DEVNET=https://goerli.infura.io/v3/your_infura_project_id
+PRIVATE_KEY=your_metamask_private_key
+USE_DEVNET=true  # true면 테스트 네트워크, false면 메인넷 연결
+```
+
+의존성 설치
+```
+npm install
+```
+
+서버 실행
+```
+node src/app.js
+```
+
+API 테스트 서버가 http://localhost:3000에서 실행됩니다. 
+
+Postman 또는 curl 명령어를 사용하여 API 요청을 테스트할 수 있습니다.
 
 ## src/routes/issuerRoutes.js
 ### 1. Mint API 사용 예시
