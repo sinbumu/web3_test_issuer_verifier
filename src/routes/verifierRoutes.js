@@ -29,46 +29,59 @@ router.get('/verify', async (req, res) => {
     }
 
     try {
-        // Web3를 통해 컨트랙트에서 데이터 가져오기
-        const credentialData = await contract.methods.credential(tokenId).call();
-        const { ClaimURI, ClaimHash, Issuer, IssuerTokenID } = credentialData;
-        console.log('credentialData : ', credentialData);
+        let currentTokenId = tokenId;
+        let iterationCount = 0;
+        const issuerClaims = [];
 
-        // MongoDB API 서버에서 tokenId로 데이터 조회
-        let queryUrl = `${ClaimURI}?tokenId=${tokenId}`;
-        if (password) {
-            queryUrl += `&password=${password}`;
-        }
-        const response = await axios.get(queryUrl);
-        const mongoCredentialData = response.data;
+        while (currentTokenId && iterationCount < 23) {
+            // Web3를 통해 컨트랙트에서 데이터 가져오기
+            const credentialData = await contract.methods.credential(currentTokenId).call();
+            const { ClaimURI, ClaimHash, Issuer, IssuerTokenID } = credentialData;
+            console.log(`credentialData for tokenId ${currentTokenId}: `, credentialData);
 
-        console.log('MongoDB response data:', mongoCredentialData);
+            // MongoDB API 서버에서 tokenId로 데이터 조회
+            let queryUrl = `${ClaimURI}?tokenId=${currentTokenId}`;
+            if (password) {
+                queryUrl += `&password=${password}`;
+            }
+            const response = await axios.get(queryUrl);
+            const mongoCredentialData = response.data;
 
-        // MongoDB에서 가져온 Claim 데이터 확인
-        if (!mongoCredentialData.credential || !mongoCredentialData.credential.Claim) {
-            console.error('Claim data not found in MongoDB response');
-            return res.status(400).json({ error: 'Claim 데이터가 없습니다.' });
-        }
-        const mongoClaim = mongoCredentialData.credential.Claim;
+            console.log(`MongoDB response data for tokenId ${currentTokenId}:`, mongoCredentialData);
 
-        // 무결성 체크: MongoDB에서 가져온 Claim 데이터를 해시화하여 컨트랙트의 claimHash와 비교
-        const computedHash = generateHash(mongoClaim);
-        if (computedHash !== ClaimHash) {
-            return res.status(400).json({ error: '무결성 체크 실패: 데이터가 손상되었습니다.' });
-        }
+            // MongoDB에서 가져온 Claim 데이터 확인
+            if (!mongoCredentialData.credential || !mongoCredentialData.credential.Claim) {
+                console.error(`Claim data not found in MongoDB response for tokenId ${currentTokenId}`);
+                return res.status(400).json({ error: 'Claim 데이터가 없습니다.' });
+            }
+            const mongoClaim = mongoCredentialData.credential.Claim;
 
-        // 응답 데이터 형식: MongoDB 데이터와 Web3에서 가져온 정보 포함
-        const result = {
-            credential: mongoCredentialData.credential,
-            web3Data: {
+            // 무결성 체크: MongoDB에서 가져온 Claim 데이터를 해시화하여 컨트랙트의 claimHash와 비교
+            const computedHash = generateHash(mongoClaim);
+            if (computedHash !== ClaimHash) {
+                return res.status(400).json({ error: '무결성 체크 실패: 데이터가 손상되었습니다.' });
+            }
+
+            // issuerClaims 배열에 결과 추가
+            issuerClaims.push({
+                tokenId: currentTokenId,
+                mongoClaim,
                 ClaimURI,
                 ClaimHash,
                 Issuer,
                 IssuerTokenID: IssuerTokenID.toString() // BigInt를 문자열로 변환
-            }
-        };
+            });
 
-        res.status(200).json(result);
+            // 다음 IssuerTokenID로 반복 처리
+            currentTokenId = IssuerTokenID !== 0n ? IssuerTokenID.toString() : null;
+            iterationCount++;
+        }
+
+        // 응답 데이터 형식: 첫 번째 토큰과 그에 연결된 모든 IssuerClaim 포함
+        res.status(200).json({
+            mainCredential: issuerClaims[0],
+            issuerClaims: issuerClaims.slice(1) // 첫 번째 제외하고 나머지 IssuerClaims 반환
+        });
     } catch (error) {
         console.error(error);
 
@@ -81,6 +94,5 @@ router.get('/verify', async (req, res) => {
         }
     }
 });
-
 
 module.exports = router;

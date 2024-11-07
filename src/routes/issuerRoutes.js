@@ -41,8 +41,8 @@ router.post('/mint', async (req, res) => {
     const { uri, tokenId, ItokenId, password, Claim, to } = req.body;
 
     // 필수값 검사
-    if (!uri || !tokenId || !password || !Claim || !to) {
-        return res.status(400).json({ error: 'uri, tokenId, password, Claim, to는 필수값입니다.' });
+    if (!uri || !tokenId || !Claim || !to) {
+        return res.status(400).json({ error: 'uri, tokenId, Claim, to는 필수값입니다.' });
     }
 
     try {
@@ -68,7 +68,8 @@ router.post('/mint', async (req, res) => {
 
         // 비밀번호 해시화
         const saltRounds = 10;
-        const hashedPassword = await bcrypt.hash(password, saltRounds);
+        const hashedPassword = password ? await bcrypt.hash(password, saltRounds) : null;
+
 
         // MongoDB API 서버에 데이터 저장 요청 (to 주소와 ItokenId 포함)
         await axios.post(`${MONGODB_API_URL}/api/credentials`, {

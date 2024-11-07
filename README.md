@@ -74,14 +74,27 @@ curl -X POST http://localhost:3000/api/issuer/mint \
    -H "Content-Type: application/json" \
    -d '{
       "uri": "http://3.34.178.233:3000/api/credentials",
-      "tokenId": "90909169",
+      "tokenId": "90909173",
       "password": "mysecretpassword",
       "Claim": {
          "name": "Example Credential",
          "type": "ExampleType"
       },
       "to": "0x3488dDf18de8dBD52Ac9Cb95E2685185D90663F5",
-      "ItokenId": "111111116"
+      "ItokenId": "111111120"
+   }'
+
+curl -X POST http://localhost:3000/api/issuer/mint \
+   -H "Content-Type: application/json" \
+   -d '{
+      "uri": "http://3.34.178.233:3000/api/credentials",
+      "tokenId": "111111120",
+      "Claim": {
+         "name": "Example Credential",
+         "type": "ExampleType"
+      },
+      "to": "0x9D1840102FFcFd72857394A0D0393D8442d4edd2",
+      "ItokenId": "111111119"
    }'
 ```
 요청 파라미터:
@@ -136,7 +149,7 @@ tokenId: 소각할 토큰의 고유 ID (필수)
 ```
 ### Credential 조회
 ```
-curl -X GET http://localhost:3000/api/issuer/credential/90909168
+curl -X GET http://localhost:3000/api/issuer/credential/111111117
 ```
 
 ### TransferFrom 전송
@@ -179,10 +192,10 @@ tokenId와 선택적인 password를 기반으로 MongoDB API 서버에 조회 �
 
 ```
 //비밀번호 없는 경우
-curl -X GET "http://localhost:3000/api/verifier/verify?tokenId=112345"
+curl -X GET "http://localhost:3000/api/verifier/verify?tokenId=111111119"
 
 //있는 경우
-curl -X GET "http://localhost:3000/api/verifier/verify?tokenId=90909168&password=mysecretpassword"
+curl -X GET "http://localhost:3000/api/verifier/verify?tokenId=90909173&password=mysecretpassword"
 ```
 ```
 //응답 예시 
