@@ -34,6 +34,7 @@ ETHEREUM_MAINNET=https://mainnet.infura.io/v3/your_infura_project_id
 ETHEREUM_DEVNET=https://goerli.infura.io/v3/your_infura_project_id
 PRIVATE_KEY=your_metamask_private_key
 USE_DEVNET=true  # true면 테스트 네트워크, false면 메인넷 연결
+CONTRACT_ADDRESS=your_target_contract_address #대상이 될 컨트랙트 주소
 ```
 
 의존성 설치
@@ -46,7 +47,7 @@ npm install
 node src/app.js
 ```
 
-API 테스트 서버가 http://localhost:3000에서 실행됩니다. 
+API 테스트 서버가 http://localhost:3000 에서 실행됩니다. 
 
 Postman 또는 curl 명령어를 사용하여 API 요청을 테스트할 수 있습니다.
 
@@ -208,9 +209,25 @@ curl -X GET "http://localhost:3000/api/verifier/verify?tokenId=9999999&password=
 ## 해쉬 무결성 체크 관련
 ```
 //issuerRoutes.js 에서
-const credentialData = { ...exampleCredential, tokenId };
-//이 변수에 대해서
-const hash = generateHash(credentialData);
+const { uri, tokenId, ItokenId, password, Claim, to } = req.body;
+//저기서 Claim 에 대해서
+const claimHash = generateHash(Claim)
 //이렇게 해쉬화 하기 때문에
-//나중에 데이터 무결성 체크 검증이 필요해 진다면 위와 같은 절차를 밟으면 됨.
+//나중에 데이터 무결성 체크 검증이 필요해 진다면 위와 같은 절차를 밟아야 함.
+
+//verifierRoutes.js 에서 
+// MongoDB에서 가져온 Claim 데이터 확인
+            if (!mongoCredentialData.credential || !mongoCredentialData.credential.Claim) {
+                console.error(`Claim data not found in MongoDB response for tokenId ${currentTokenId}`);
+                return res.status(400).json({ error: 'Claim 데이터가 없습니다.' });
+            }
+            const mongoClaim = mongoCredentialData.credential.Claim;
+
+            // 무결성 체크: MongoDB에서 가져온 Claim 데이터를 해시화하여 컨트랙트의 claimHash와 비교
+            const computedHash = generateHash(mongoClaim);
+            if (computedHash !== ClaimHash) {
+                return res.status(400).json({ error: '무결성 체크 실패: 데이터가 손상되었습니다.' });
+            }
+//이런식으로 현재 따지는데, 위처럼 정확히 mint시에 Claim으로 전달한 부분만 해시채크를 해야 하고
+//몽고에 적재한 document를 통으로 해시화 하면 제대로 불일치 확인이 안 될 수 있음을 주의
 ```
