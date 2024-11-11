@@ -1,9 +1,15 @@
 // src/app.js
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 
 const app = express();
 const port = 3000;
+
+// CORS 미들웨어 추가
+app.use(cors({
+   origin: 'http://localhost:3030' // React 앱의 주소를 허용
+}));
 
 // 기본 JSON 파싱 미들웨어 설정
 app.use(express.json());
