@@ -56,67 +56,91 @@ Postman 또는 curl 명령어를 사용하여 API 요청을 테스트할 수 있
 Endpoint: POST /api/issuer/mint
 
 설명:
-mint API는 다음과 같은 필수 파라미터를 받습니다:
+/mint API는 새로운 토큰을 발행(mint)하기 위한 엔드포인트입니다. 이 API는 다음과 같은 필수 파라미터를 받습니다:
 
+##### 필수 파라미터
 - uri: 인증서 URI
 - tokenId: 토큰의 고유 ID
-- ItokenId: 부모 토큰 ID
-- password: 클라이언트가 설정할 암호 (이후 검증에 사용)
 - Claim: 인증서 데이터 객체 (JSON 형식)
 - to: 민팅할 대상 주소 (ERC-721 토큰을 받을 주소)
+- issuanceTime: 발급 시각 (밀리초 단위 타임스탬프)
+- expirationTime: 만료 시각 (밀리초 단위 타임스탬프)
+
+##### 선택적 파라미터
+- ItokenId: 부모 토큰 ID
+- password: 클라이언트가 설정할 암호 (이후 검증에 사용)
+- optionalData: 기타 추가 정보
 
 요청이 성공하면 tokenId, transactionHash, password, claimHash 값을 반환합니다. 
 
 반환된 password와 claimHash 값은 클라이언트가 저장해 두어 이후 검증에 사용할 수 있습니다.
 
 #### 요청 예시
+
+Unix 시간은 초 단위이며, 아래 예시에서는 발급 시각을 현재 시간으로 설정하고, 만료 시각을 1년 후로 설정하였습니다 (1년은 31,536,000초입니다).
+
 ```
+# 첫 번째 예시: password와 optionalData 포함
 curl -X POST http://localhost:3000/api/issuer/mint \
    -H "Content-Type: application/json" \
    -d '{
-      "uri": "http://3.34.178.233:3000/api/credentials",
-      "tokenId": "90909173",
+      "uri": "http://example.com/credentials/90909174",
+      "tokenId": "90909174",
       "password": "mysecretpassword",
       "Claim": {
          "name": "Example Credential",
          "type": "ExampleType"
       },
       "to": "0x3488dDf18de8dBD52Ac9Cb95E2685185D90663F5",
-      "ItokenId": "111111120"
+      "ItokenId": "111111120",
+      "issuanceTime": 1732068275,
+      "expirationTime": 1755655475,
+      "optionalData": "Additional information"
    }'
 
+# 두 번째 예시: password와 optionalData 없이
 curl -X POST http://localhost:3000/api/issuer/mint \
    -H "Content-Type: application/json" \
    -d '{
-      "uri": "http://3.34.178.233:3000/api/credentials",
+      "uri": "http://example.com/credentials/111111120",
       "tokenId": "111111120",
       "Claim": {
-         "name": "Example Credential",
-         "type": "ExampleType"
+         "name": "Another Credential",
+         "type": "AnotherType"
       },
       "to": "0x9D1840102FFcFd72857394A0D0393D8442d4edd2",
-      "ItokenId": "111111119"
+      "ItokenId": "111111119",
+      "issuanceTime": 1732068275,
+      "expirationTime": 1755655475
    }'
 ```
-요청 파라미터:
-
-- uri: 인증서 URI (필수)
-- tokenId: 토큰의 고유 ID (필수)
-- password: 사용자 정의 암호 (필수)
-- Claim: 인증서 데이터 객체, JSON 형식으로 다양한 데이터를 포함할 수 있음 (필수)
-- to: 토큰을 받을 대상 주소 (필수)
-- ItokenId: 부모 토큰 ID (선택적)
+##### 요청 파라미터 설명:
+- uri (필수): 인증서의 URI입니다.
+- tokenId (필수): 발행할 토큰의 고유 ID입니다.
+- Claim (필수): 인증서 데이터 객체로, JSON 형식으로 다양한 데이터를 포함할 수 있습니다.
+- to (필수): 토큰을 받을 대상의 주소입니다.
+- issuanceTime (필수): 발급 시각을 나타내는 Unix 시간(초 단위)입니다.
+- expirationTime (필수): 만료 시각을 나타내는 Unix 시간(초 단위)입니다.
+- ItokenId (선택적): 부모 토큰의 ID입니다. 기본값은 0입니다.
+- password (선택적): 사용자 정의 암호로, 이후 검증에 사용됩니다.
+- optionalData (선택적): 기타 추가 정보를 문자열로 전달할 수 있습니다.
 
 ```
 //응답 예
 {
    "message": "Mint 성공",
-   "tokenId": "112345",
+   "tokenId": "90909173",
    "transactionHash": "0xabc123...def456",
-   "password": "generatedpassword",
-   "claimHash": "hashvalue12345"
+   "password": "mysecretpassword",
+   "claimHash": "0x123456789abcdef..."
 }
 ```
+
+##### 참고사항:
+- 타임스탬프 형식: issuanceTime과 expirationTime은 초 단위의 Unix 시간이어야 합니다.
+- password 필드: password를 입력한 경우에만 응답에 password 필드가 포함됩니다. 민감한 정보이므로 안전하게 보관해야 합니다.
+- claimHash: Claim 데이터의 해시 값이며, 이후 검증을 위해 사용됩니다.
+- 에러 처리: 모든 필수 파라미터가 제공되지 않거나 형식이 잘못된 경우 400 상태 코드와 함께 에러 메시지를 반환합니다.
 
 ### 2. Burn API 사용 예시
 Endpoint: POST /api/issuer/burn
@@ -237,3 +261,6 @@ const claimHash = generateHash(Claim)
 1. 현재는 certify(mint) api를 호출하는게 Issuer가 하는 행위이며, 이 떄 Claim의 내용물을 받아서 해쉬값도 만들어두고, 저장소에 직접 올려서 저장하고 해당 저장소에 대한 uri도 이 api에서 생성함. - 추후에는 클라이언트가 Claim을 스스로 어딘가 저장하고 uri등을 건널 수 있으며, 이럴 경우에는 저장소에 올리는 행위 없이 이더리움 노드와 통신해 블록체인상 기록만 하고, 클라이언트에게 결과 반환만 하기로. 이럴 경우 credential은 이슈어가 발생시키지만(mint) Claim은 완전히 클라이언트가 작성해서 후에 참조할 참조경로또한 클라이언트가 관리. - 이게 지금 생각엔 처리 방식이 꽤 상이할 거 같아서, 굳이 하나의 api에서 분기 처리 하기보다는 지금처럼 이슈어가 직접 클레임 저장하는 api를 두고, 클라이언트가 클레임을 직접 관리하는 경우 api를 추가하는게 더 깔끔할 것 같음.
 
 2. 도용의 경우 방지하기 위한 구현? - 도용을 신경 써도 안되는 클레임은 tokenId를 알고 있는 누구나 제출 가능해도 상관 없지만(ex: A가 B에 대한 자격이 있음 - 이건 제 3자가 도용해도 자기가 자격이 있는건 아님), 도용에 대해 신경써야 할 경우, tokenId에 대한 OwnerOf의 지갑주소를 제출자가 자기 지갑이 맞다고 증명이 가능한지 따져야 할듯. - 서명에서 주소복구 로직을 써서 증명하면 젤 심플할듯?
+
+3. 나중에는 timestamp도 넣을 수 있음 > 이슈어가 컨트랙트에 특정 로직 수행중에 certify(mint)할때 자기가 구해서 전달
+

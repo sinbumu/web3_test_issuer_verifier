@@ -77,31 +77,46 @@
     },
     {
         "inputs": [
-            {
-                "internalType": "address",
-                "name": "_to",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "_tokenId",
-                "type": "uint256"
-            },
-            {
-                "internalType": "string",
-                "name": "_claimURI",
-                "type": "string"
-            },
-            {
-                "internalType": "string",
-                "name": "_claimHash",
-                "type": "string"
-            },
-            {
-                "internalType": "uint256",
-                "name": "_issuerTokenID",
-                "type": "uint256"
-            }
+          {
+            "internalType": "address",
+            "name": "_to",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "_tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "string",
+            "name": "_claimURI",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "_claimHash",
+            "type": "string"
+          },
+          {
+            "internalType": "uint256",
+            "name": "_issuerTokenID",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "_issueDate",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "_expirationDate",
+            "type": "uint256"
+          },
+          {
+            "internalType": "string",
+            "name": "_optionalData",
+            "type": "string"
+          }
         ],
         "name": "certify",
         "outputs": [],

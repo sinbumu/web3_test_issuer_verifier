@@ -38,11 +38,21 @@ const generateHash = (data) => {
 
 // Mint (발행) API
 router.post('/mint', async (req, res) => {
-    const { uri, tokenId, ItokenId, password, Claim, to } = req.body;
+    const { 
+        uri, 
+        tokenId, 
+        ItokenId, 
+        password, 
+        Claim, 
+        to, 
+        issuanceTime, 
+        expirationTime, 
+        optionalData 
+    } = req.body;
 
     // 필수값 검사
-    if (!uri || !tokenId || !Claim || !to) {
-        return res.status(400).json({ error: 'uri, tokenId, Claim, to는 필수값입니다.' });
+    if (!uri || !tokenId || !Claim || !to || issuanceTime === undefined || expirationTime === undefined) {
+        return res.status(400).json({ error: 'uri, tokenId, Claim, to, issuanceTime, expirationTime는 필수값입니다.' });
     }
 
     try {
@@ -51,8 +61,21 @@ router.post('/mint', async (req, res) => {
         // `ItokenId`가 없을 경우 기본값으로 `0` 설정
         const parentTokenId = ItokenId || 0;
 
+        // optionalData가 없으면 빈 문자열로 설정
+        const optionalDataValue = optionalData || "";
+
         // ERC-721 컨트랙트의 certify 함수 호출, to 주소로 민팅
-        const certifyTx = contract.methods.certify(to, tokenId, uri, claimHash, parentTokenId);
+        const certifyTx = contract.methods.certify(
+            to,
+            tokenId,
+            uri,
+            claimHash,
+            parentTokenId,
+            issuanceTime,
+            expirationTime,
+            optionalDataValue
+        );
+
         const gas = await certifyTx.estimateGas({ from: account.address });
         const certifyTxData = certifyTx.encodeABI();
 
@@ -70,7 +93,6 @@ router.post('/mint', async (req, res) => {
         const saltRounds = 10;
         const hashedPassword = password ? await bcrypt.hash(password, saltRounds) : null;
 
-
         // MongoDB API 서버에 데이터 저장 요청 (to 주소와 ItokenId 포함)
         await axios.post(`${MONGODB_API_URL}/api/credentials`, {
             uri,
@@ -79,7 +101,10 @@ router.post('/mint', async (req, res) => {
             Claim: Claim,
             password: hashedPassword, // 해시된 비밀번호
             hash: claimHash,
-            to // to 주소 추가
+            to, // to 주소 추가
+            issuanceTime,
+            expirationTime,
+            optionalData: optionalDataValue
         });
 
         res.status(200).json({ 
@@ -92,36 +117,6 @@ router.post('/mint', async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Mint 실패' });
-    }
-});
-
-// Burn (소각) API
-router.post('/burn', async (req, res) => {
-    const { tokenId } = req.body;
-
-    try {
-        // ERC-721 컨트랙트의 revoke 함수 호출
-        const revokeTx = contract.methods.revoke(tokenId);
-        const gas = await revokeTx.estimateGas({ from: account.address });
-        const revokeTxData = revokeTx.encodeABI();
-
-        const tx = {
-            from: account.address,
-            to: CONTRACT_ADDRESS,
-            data: revokeTxData,
-            gas
-        };
-
-        // 트랜잭션 전송
-        const receipt = await web3.eth.sendTransaction(tx);
-
-        // MongoDB API 서버에 논리 삭제 요청
-        await axios.delete(`${MONGODB_API_URL}/api/credentials/${tokenId}`);
-
-        res.status(200).json({ message: 'Burn 성공', tokenId, transactionHash: receipt.transactionHash });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Burn 실패' });
     }
 });
 
