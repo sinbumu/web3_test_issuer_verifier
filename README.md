@@ -85,7 +85,7 @@ curl -X POST http://localhost:3000/api/issuer/mint \
    -H "Content-Type: application/json" \
    -d '{
       "uri": "http://example.com/credentials/90909174",
-      "tokenId": "90909174",
+      "tokenId": "90909176",
       "password": "mysecretpassword",
       "Claim": {
          "name": "Example Credential",
@@ -262,5 +262,11 @@ const claimHash = generateHash(Claim)
 
 2. 도용의 경우 방지하기 위한 구현? - 도용을 신경 써도 안되는 클레임은 tokenId를 알고 있는 누구나 제출 가능해도 상관 없지만(ex: A가 B에 대한 자격이 있음 - 이건 제 3자가 도용해도 자기가 자격이 있는건 아님), 도용에 대해 신경써야 할 경우, tokenId에 대한 OwnerOf의 지갑주소를 제출자가 자기 지갑이 맞다고 증명이 가능한지 따져야 할듯. - 서명에서 주소복구 로직을 써서 증명하면 젤 심플할듯?
 
-3. 나중에는 timestamp도 넣을 수 있음 > 이슈어가 컨트랙트에 특정 로직 수행중에 certify(mint)할때 자기가 구해서 전달
+3. ~~나중에는 timestamp도 넣을 수 있음 > 이슈어가 컨트랙트에 특정 로직 수행중에 certify(mint)할때 자기가 구해서 전달~~ - 반영
+
+4. 기존 이슈어가 직접 클레임을 적재하고 + 해쉬화 하던건 파기? > 이슈어가 클레임 자체를 직접 저장하면 클라이언트가 전달한걸 변조하지 않았을 거란 보장이 안됨. > 다만 일단 api 예시 구현상에선 api 하나에서 둘다 해도 될듯. (설명을 해둔다면) , > 다시 얘기해서 최종 정리 : 시나리오 상 - 클라이언트가 자기 클레임 uri와 password(optional)을 넘김. 이슈어는 클레임을 열어서 해쉬화 하고 certify컨트랙트 메소드를 호출해서 민팅을하고, 결과를 응답함. < 이게 기본 베이스 시나리오. - 기존 이슈어 api에서 클라이언트가 작업하는 영역(자기 클레임을 스토리지에 올리고 공유,제출) , 이슈어가하는 영역 (받은 클레임에 대한 증명서발급(mint)) - 이거 그냥 issuerRoutes에서 찢을지 Routes를 하나 더 추가할지 고민각
+-- 최종 정리 : 현재 mint api에 있는 내용을 나눌거임. clientRoutes.js 를 추가하고, 여기에선 Claim 과 비밀번호(optional) 값을 받으면, dbms api서버에 넘겨서 적재하고, 최종적으로 uri와 password(optional)를 응답 받을 거임. 그리고 기존 mint api에서는 uri+password(optional)을 받아서, 이슈어측에선 uri를 통해 Claim데이터를 조회하고 이를 해쉬화 한뒤 contract의 certify method를 call 해서 mint를 함. 이 과정에서 mint api에서는 더이상 dbms와 통신하는 부분은 없고 해쉬화+컨트랙트 call 만 남음.
+
+
+
 
