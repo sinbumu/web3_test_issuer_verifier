@@ -2,7 +2,6 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const Web3 = require('web3').Web3;
 const axios = require('axios');
-const crypto = require('crypto');
 const fs = require('fs');
 const router = express.Router();
 
@@ -19,22 +18,13 @@ web3.eth.accounts.wallet.add(account);
 
 // ABI 및 컨트랙트 설정
 const contractABI = JSON.parse(fs.readFileSync('./src/abi/VCNFT.json', 'utf-8'));
-// const CONTRACT_ADDRESS = '0xB637A0ed6d738702C50a70ed32e3f0ba9D3c6bDB'; // 배포된 컨트랙트 주소로 업데이트 필요
 const contract = new web3.eth.Contract(contractABI, CONTRACT_ADDRESS);
 
-// 하드코딩된 기본 Credential 데이터
-// const exampleCredential = {
-//     name: 'Example Credential',
-//     type: 'ExampleType'
-// };
-
 // 해시 생성 함수
-// 현재는 Credential이 어떤 데이터 포멧을 가지나 이런게 전혀 없기 때문에
-// 그냥 받은 데이터 무조건 web3의 sha3 유틸로 해시화.
-// 후에 구체화 되면 조건문 등 들어갈 수 있음.
 const generateHash = (data) => {
     return web3.utils.sha3(JSON.stringify(data));
 };
+
 
 // Mint (발행) API
 router.post('/mint', async (req, res) => {
@@ -43,7 +33,6 @@ router.post('/mint', async (req, res) => {
         tokenId, 
         ItokenId, 
         password, 
-        Claim, 
         to, 
         issuanceTime, 
         expirationTime, 
@@ -51,12 +40,31 @@ router.post('/mint', async (req, res) => {
     } = req.body;
 
     // 필수값 검사
-    if (!uri || !tokenId || !Claim || !to || issuanceTime === undefined || expirationTime === undefined) {
-        return res.status(400).json({ error: 'uri, tokenId, Claim, to, issuanceTime, expirationTime는 필수값입니다.' });
+    if (!uri || !tokenId || !to || issuanceTime === undefined || expirationTime === undefined) {
+        return res.status(400).json({ error: 'uri, tokenId, to, issuanceTime, expirationTime는 필수값입니다.' });
     }
 
     try {
-        const claimHash = generateHash(Claim); // Claim의 해시값 생성
+        // uri에서 claimKey 추출
+        const uriObj = new URL(uri);
+        const claimKey = uriObj.searchParams.get('claimKey');
+
+        if (!claimKey) {
+            return res.status(400).json({ error: 'uri에 claimKey가 포함되어 있지 않습니다.' });
+        }
+
+        // MongoDB API 서버에 Claim 데이터 요청
+        const claimResponse = await axios.get(`${MONGODB_API_URL}/api/claims`, {
+            params: {
+                claimKey,
+                password: password || ''
+            }
+        });
+
+        const claimData = claimResponse.data.Claim;
+
+        // Claim 데이터 해시화
+        const claimHash = generateHash(claimData);
 
         // `ItokenId`가 없을 경우 기본값으로 `0` 설정
         const parentTokenId = ItokenId || 0;
@@ -89,34 +97,61 @@ router.post('/mint', async (req, res) => {
         // 트랜잭션 전송
         const receipt = await web3.eth.sendTransaction(tx);
 
-        // 비밀번호 해시화
-        const saltRounds = 10;
-        const hashedPassword = password ? await bcrypt.hash(password, saltRounds) : null;
-
-        // MongoDB API 서버에 데이터 저장 요청 (to 주소와 ItokenId 포함)
-        await axios.post(`${MONGODB_API_URL}/api/credentials`, {
-            uri,
-            tokenId,
-            ItokenId: parentTokenId, // ItokenId로 저장
-            Claim: Claim,
-            password: hashedPassword, // 해시된 비밀번호
-            hash: claimHash,
-            to, // to 주소 추가
-            issuanceTime,
-            expirationTime,
-            optionalData: optionalDataValue
-        });
-
         res.status(200).json({ 
             message: 'Mint 성공', 
             tokenId, 
             transactionHash: receipt.transactionHash,
-            password, // 원본 비밀번호 반환
             claimHash
         });
     } catch (error) {
         console.error(error);
+
+        // 에러가 비밀번호 불일치로 인한 것인지 확인
+        if (error.response && error.response.status === 401) {
+            return res.status(401).json({ error: '비밀번호가 일치하지 않습니다.' });
+        }
+
         res.status(500).json({ error: 'Mint 실패' });
+    }
+});
+
+
+// Revoke (소각) API 추가
+router.post('/revoke', async (req, res) => {
+    const { tokenId } = req.body;
+
+    if (!tokenId) {
+        return res.status(400).json({ error: 'tokenId는 필수값입니다.' });
+    }
+
+    try {
+        // ERC-721 컨트랙트의 revoke 함수 호출
+        const revokeTx = contract.methods.revoke(tokenId);
+
+        const gas = await revokeTx.estimateGas({ from: account.address });
+        const revokeTxData = revokeTx.encodeABI();
+
+        const tx = {
+            from: account.address,
+            to: CONTRACT_ADDRESS,
+            data: revokeTxData,
+            gas
+        };
+
+        // 트랜잭션 전송
+        const receipt = await web3.eth.sendTransaction(tx);
+
+        // MongoDB API 서버에 논리 삭제 요청
+        await axios.delete(`${MONGODB_API_URL}/api/credentials/${tokenId}`);
+
+        res.status(200).json({ 
+            message: 'Revoke 성공', 
+            tokenId, 
+            transactionHash: receipt.transactionHash 
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Revoke 실패' });
     }
 });
 
@@ -146,19 +181,22 @@ router.get('/claimHash/:tokenId', async (req, res) => {
     }
 });
 
-// Credential 조회 API
+// Credential 조회 API 수정
 router.get('/credential/:tokenId', async (req, res) => {
     const { tokenId } = req.params;
 
     try {
         const credentialData = await contract.methods.credential(tokenId).call();
-        
-        // 정확한 프로퍼티 이름을 사용하고 BigInt를 문자열로 변환
+
+        // Credential 구조체의 모든 필드 포함
         const formattedCredentialData = {
             claimURI: credentialData.ClaimURI,
             claimHash: credentialData.ClaimHash,
             issuer: credentialData.Issuer,
-            issuerTokenID: credentialData.IssuerTokenID.toString()
+            issuerTokenID: credentialData.IssuerTokenID.toString(),
+            issuanceTime: credentialData.issuanceTime.toString(),
+            expirationTime: credentialData.expirationTime.toString(),
+            optionalData: credentialData.optionalData
         };
 
         res.status(200).json({ tokenId, credential: formattedCredentialData });
@@ -179,27 +217,29 @@ router.post('/transfer', async (req, res) => {
     try {
         // `transferFrom` 트랜잭션 생성
         const transferTx = contract.methods.transferFrom(from, to, tokenId);
-        
-        // `account.address`에서 가스 추정 및 트랜잭션 데이터 생성
+
         const gas = await transferTx.estimateGas({ from: account.address });
         const transferTxData = transferTx.encodeABI();
 
-        // 트랜잭션 설정
         const tx = {
-            from: account.address,       // 트랜잭션 생성 계정
-            to: CONTRACT_ADDRESS,        // 컨트랙트 주소
-            data: transferTxData,        // `transferFrom` 트랜잭션 데이터
+            from: account.address,
+            to: CONTRACT_ADDRESS,
+            data: transferTxData,
             gas
         };
 
         // 트랜잭션 전송
         const receipt = await web3.eth.sendTransaction(tx);
-        res.status(200).json({ message: 'Transfer 성공', tokenId, transactionHash: receipt.transactionHash });
+
+        res.status(200).json({ 
+            message: 'Transfer 성공', 
+            tokenId, 
+            transactionHash: receipt.transactionHash 
+        });
     } catch (error) {
         console.error('Transfer 실패:', error);
         res.status(500).json({ error: 'Transfer 실패' });
     }
 });
-
 
 module.exports = router;

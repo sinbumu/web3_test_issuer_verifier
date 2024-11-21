@@ -22,9 +22,11 @@ app.get('/', (req, res) => {
 // 발행(mint), 검증(verify) 관련 라우트
 const issuerRoutes = require('./routes/issuerRoutes');
 const verifierRoutes = require('./routes/verifierRoutes');
+const clientRoutes = require('./routes/clientRoutes');
 
 app.use('/api/issuer', issuerRoutes);
 app.use('/api/verifier', verifierRoutes);
+app.use('/api/client', clientRoutes);
 
 // 서버 시작
 app.listen(port, () => {
