@@ -194,9 +194,9 @@ router.get('/credential/:tokenId', async (req, res) => {
             claimHash: credentialData.ClaimHash,
             issuer: credentialData.Issuer,
             issuerTokenID: credentialData.IssuerTokenID.toString(),
-            issuanceTime: credentialData.issuanceTime.toString(),
-            expirationTime: credentialData.expirationTime.toString(),
-            optionalData: credentialData.optionalData
+            issueDate: credentialData.IssueDate.toString(),
+            expirationDate: credentialData.ExpirationDate.toString(),
+            optionalData: credentialData.OptionalData
         };
 
         res.status(200).json({ tokenId, credential: formattedCredentialData });
@@ -205,6 +205,7 @@ router.get('/credential/:tokenId', async (req, res) => {
         res.status(500).json({ error: 'Credential 조회 실패' });
     }
 });
+
 
 // TransferFrom 전송 API
 router.post('/transfer', async (req, res) => {

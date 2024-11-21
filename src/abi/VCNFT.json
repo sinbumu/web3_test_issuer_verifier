@@ -190,6 +190,21 @@
               "internalType": "uint256",
               "name": "IssuerTokenID",
               "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "IssueDate",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "ExpirationDate",
+              "type": "uint256"
+            },
+            {
+              "internalType": "string",
+              "name": "OptionalData",
+              "type": "string"
             }
           ],
           "internalType": "struct VCNFT.Credential",
