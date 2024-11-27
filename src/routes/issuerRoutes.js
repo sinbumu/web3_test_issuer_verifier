@@ -36,15 +36,23 @@ router.post('/mint', async (req, res) => {
         to, 
         issuanceTime, 
         expirationTime, 
-        optionalData 
+        optionalData,
+        signature
     } = req.body;
 
     // 필수값 검사
-    if (!uri || !tokenId || !to || issuanceTime === undefined || expirationTime === undefined) {
-        return res.status(400).json({ error: 'uri, tokenId, to, issuanceTime, expirationTime는 필수값입니다.' });
+    if (!uri || !tokenId || !to || !signature || issuanceTime === undefined || expirationTime === undefined) {
+        return res.status(400).json({ error: 'uri, tokenId, to, signature, issuanceTime, expirationTime는 필수값입니다.' });
     }
 
     try {
+        // 서명 검증
+        const recoveredAddress = web3.eth.accounts.recover(uri, signature);
+
+        if (recoveredAddress.toLowerCase() !== to.toLowerCase()) {
+            return res.status(401).json({ error: '서명 검증 실패: 제공된 주소와 서명 주소가 일치하지 않습니다.' });
+        }
+
         // uri에서 claimKey 추출
         const uriObj = new URL(uri);
         const claimKey = uriObj.searchParams.get('claimKey');
@@ -114,7 +122,6 @@ router.post('/mint', async (req, res) => {
         res.status(500).json({ error: 'Mint 실패' });
     }
 });
-
 
 // Revoke (소각) API 추가
 router.post('/revoke', async (req, res) => {

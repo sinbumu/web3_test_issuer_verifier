@@ -19,69 +19,86 @@ const generateHash = (data) => {
     return web3.utils.sha3(JSON.stringify(data));
 };
 
-// 1. Verify (검증) API
-router.get('/verify', async (req, res) => {
-    const { tokenId, password } = req.query;
+// 검증에 사용할 평문 저장 변수
+let currentPlaintext = '초기 검증용 평문';
+
+// 5분마다 평문을 업데이트하는 함수
+setInterval(() => {
+    // 평문을 업데이트합니다.
+    // 여기서는 간단히 현재 시간을 문자열로 사용합니다.
+    currentPlaintext = `검증용 평문: ${new Date().toISOString()}`;
+}, 5 * 60 * 1000); // 5분마다 실행
+
+// 검증자의 평문을 제공하는 API
+router.get('/plaintext', (req, res) => {
+    res.status(200).json({
+        message: '현재 검증용 평문입니다.',
+        plaintext: currentPlaintext
+    });
+});
+
+// 1. Verify (검증) API 수정
+router.post('/verify', async (req, res) => {
+    const { tokenId, uri, password, signature } = req.body;
 
     // 필수값 검사
-    if (!tokenId) {
-        return res.status(400).json({ error: 'tokenId는 필수값입니다.' });
+    if (!tokenId || !uri || !signature) {
+        return res.status(400).json({ error: 'tokenId, uri, signature는 필수값입니다.' });
     }
 
     try {
-        let currentTokenId = tokenId;
-        let iterationCount = 0;
-        const issuerClaims = [];
+        // 1. 서명 검증: signature와 currentPlaintext를 사용하여 주소 복원
+        const recoveredAddress = web3.eth.accounts.recover(currentPlaintext, signature);
+        console.log("recoveredAddress : ", recoveredAddress)
 
-        while (currentTokenId && iterationCount < 23) {
-            // Web3를 통해 컨트랙트에서 데이터 가져오기
-            const credentialData = await contract.methods.credential(currentTokenId).call();
-            const { ClaimURI, ClaimHash, Issuer, IssuerTokenID } = credentialData;
-            console.log(`credentialData for tokenId ${currentTokenId}: `, credentialData);
+        // 2. 블록체인에서 토큰의 소유자 확인
+        const ownerAddress = await contract.methods.ownerOf(tokenId).call();
+        console.log("ownerAddress : ", ownerAddress)
 
-            // MongoDB API 서버에서 tokenId로 데이터 조회
-            let queryUrl = `${ClaimURI}?tokenId=${currentTokenId}`;
-            if (password) {
-                queryUrl += `&password=${password}`;
-            }
-            const response = await axios.get(queryUrl);
-            const mongoCredentialData = response.data;
-
-            console.log(`MongoDB response data for tokenId ${currentTokenId}:`, mongoCredentialData);
-
-            // MongoDB에서 가져온 Claim 데이터 확인
-            if (!mongoCredentialData.credential || !mongoCredentialData.credential.Claim) {
-                console.error(`Claim data not found in MongoDB response for tokenId ${currentTokenId}`);
-                return res.status(400).json({ error: 'Claim 데이터가 없습니다.' });
-            }
-            const mongoClaim = mongoCredentialData.credential.Claim;
-
-            // 무결성 체크: MongoDB에서 가져온 Claim 데이터를 해시화하여 컨트랙트의 claimHash와 비교
-            const computedHash = generateHash(mongoClaim);
-            if (computedHash !== ClaimHash) {
-                return res.status(400).json({ error: '무결성 체크 실패: 데이터가 손상되었습니다.' });
-            }
-
-            // issuerClaims 배열에 결과 추가
-            issuerClaims.push({
-                tokenId: currentTokenId,
-                mongoClaim,
-                ClaimURI,
-                ClaimHash,
-                Issuer,
-                IssuerTokenID: IssuerTokenID.toString() // BigInt를 문자열로 변환
-            });
-
-            // 다음 IssuerTokenID로 반복 처리
-            currentTokenId = IssuerTokenID !== 0n ? IssuerTokenID.toString() : null;
-            iterationCount++;
+        if (recoveredAddress.toLowerCase() !== ownerAddress.toLowerCase()) {
+            return res.status(401).json({ error: '서명 검증 실패: 토큰 소유자와 서명 주소가 일치하지 않습니다.' });
         }
 
-        // 응답 데이터 형식: 첫 번째 토큰과 그에 연결된 모든 IssuerClaim 포함
-        res.status(200).json({
-            mainCredential: issuerClaims[0],
-            issuerClaims: issuerClaims.slice(1) // 첫 번째 제외하고 나머지 IssuerClaims 반환
+        // 3. 블록체인에서 토큰의 Credential 데이터 가져오기
+        const credentialData = await contract.methods.credential(tokenId).call();
+        const { ClaimURI, ClaimHash } = credentialData;
+        console.log("credentialData : ", credentialData)
+
+        // 4. uri에서 claimKey 추출
+        const uriObj = new URL(uri);
+        const claimKey = uriObj.searchParams.get('claimKey');
+
+        if (!claimKey) {
+            return res.status(400).json({ error: 'uri에 claimKey가 포함되어 있지 않습니다.' });
+        }
+
+        // 5. MongoDB API 서버에서 Claim 데이터 가져오기
+        const claimResponse = await axios.get(`${MONGODB_API_URL}/api/claims`, {
+            params: {
+                claimKey,
+                password: password || ''
+            }
         });
+
+        const claimData = claimResponse.data.Claim;
+
+        // 6. Claim 데이터 해시화
+        const claimHash = generateHash(claimData);
+
+        // 7. 해시 비교
+        if (claimHash === ClaimHash) {
+            res.status(200).json({
+                message: '토큰 및 소유자 검증 성공: ClaimHash가 일치하고 소유자가 확인되었습니다.',
+                tokenId,
+                claimHash
+            });
+        } else {
+            res.status(400).json({
+                error: '토큰 검증 실패: ClaimHash가 일치하지 않습니다.',
+                expectedClaimHash: claimHash,
+                actualClaimHash: ClaimHash
+            });
+        }
     } catch (error) {
         console.error(error);
 

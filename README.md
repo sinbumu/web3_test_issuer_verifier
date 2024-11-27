@@ -51,29 +51,102 @@ API 테스트 서버가 http://localhost:3000 에서 실행됩니다.
 
 Postman 또는 curl 명령어를 사용하여 API 요청을 테스트할 수 있습니다.
 
+## src/routes/clientRoutes.js
+### 1. upload API 
+엔드포인트: POST /upload
+
+설명:
+
+- /upload 엔드포인트는 클라이언트가 자신의 Claim 데이터를 안전하게 업로드할 수 있도록 합니다. 업로드된 Claim은 서버에 저장되며, 고유한 uri를 반환합니다. 이 uri는 claimKey라는 쿼리 파라미터를 포함하고 있어 나중에 Claim을 조회할 때 사용됩니다. 비밀번호를 제공한 경우, Claim은 비밀번호로 보호되며 이후 액세스 시 동일한 비밀번호가 필요합니다.
+
+요청 파라미터:
+
+- Claim (필수): 자격 증명 데이터 객체로, JSON 형식입니다. 발행자가 처리하고 토큰을 발행하는 데 필요한 모든 정보를 포함해야 합니다.
+- password (선택): Claim을 보호하기 위한 사용자 정의 비밀번호입니다. 제공된 경우, 이후 Claim에 액세스할 때 필요합니다.
+
+응답 파라미터:
+
+- message: Claim이 성공적으로 업로드되었음을 나타내는 메시지입니다.
+- uri: 업로드된 Claim에 액세스할 수 있는 고유한 URI입니다. claimKey가 쿼리 파라미터로 포함되어 있습니다.
+- password: 클라이언트가 제공한 원본 비밀번호 (있는 경우).
+
+예시
+```
+curl -X POST http://localhost:3000/api/client/upload \
+   -H "Content-Type: application/json" \
+   -d '{
+      "Claim": {
+         "title": "Im adult",
+         "validate": "InJung"
+      },
+      "password": "mysecretpassword"
+   }'
+```
+응답예시
+```
+{
+   "message": "Claim 업로드 성공",
+   "uri": "http://your-mongodb-api.com/api/claims?claimKey=a1b2c3d4e5f6g7h8i9j0",
+   "password": "mysecretpassword"
+}
+```
+
+### 2. sign API
+
+서명할 평문을 보내면 .env 에 넣어둔 CLIENT_PRIVATE_KEY 이 프라이빗 키 값으로 signature를 생성함.
+
+```
+curl -X POST http://localhost:3000/api/client/sign \
+   -H "Content-Type: application/json" \
+   -d '{
+      "message": "http://3.34.178.233:3000/api/claims?claimKey=6ae5b7fce924cc551128"
+   }'
+
+
+curl -X POST http://localhost:3000/api/client/sign \
+   -H "Content-Type: application/json" \
+   -d '{
+      "message": "초기 검증용 평문"
+   }'
+```
+
+### 3. verify token (client가 issuer가 생성한 토큰의 hash가 옳바른지 체크)
+
+```
+curl -X POST http://localhost:3000/api/client/verify-token \
+   -H "Content-Type: application/json" \
+   -d '{
+      "tokenId": "123458",
+      "uri": "http://3.34.178.233:3000/api/claims?claimKey=6ae5b7fce924cc551128",
+      "password": "mysecretpassword"
+   }'
+
+```
+
 ## src/routes/issuerRoutes.js
 ### 1. Mint API 사용 예시
 Endpoint: POST /api/issuer/mint
 
 설명:
-/mint API는 새로운 토큰을 발행(mint)하기 위한 엔드포인트입니다. 이 API는 다음과 같은 필수 파라미터를 받습니다:
+/mint 엔드포인트는 발행자가 클라이언트가 업로드한 Claim 데이터를 기반으로 새로운 토큰을 발행(mint)할 수 있도록 합니다. 발행자는 클라이언트로부터 받은 uri를 제공하며, 서버는 해당 uri를 통해 Claim을 조회하고 (비밀번호 검증 포함), Claim 데이터를 해시화한 후 스마트 컨트랙트의 certify 함수를 호출하여 토큰을 발행합니다.
 
-##### 필수 파라미터
-- uri: 인증서 URI
-- tokenId: 토큰의 고유 ID
-- Claim: 인증서 데이터 객체 (JSON 형식)
-- to: 민팅할 대상 주소 (ERC-721 토큰을 받을 주소)
-- issuanceTime: 발급 시각 (밀리초 단위 타임스탬프)
-- expirationTime: 만료 시각 (밀리초 단위 타임스탬프)
+##### 요청 파라미터
 
-##### 선택적 파라미터
-- ItokenId: 부모 토큰 ID
-- password: 클라이언트가 설정할 암호 (이후 검증에 사용)
-- optionalData: 기타 추가 정보
+- uri (필수): Claim 데이터에 액세스할 수 있는 URI입니다. claimKey가 쿼리 파라미터로 포함되어 있어야 합니다 (예: http://your-mongodb-api.com/api/claims?claimKey=a1b2c3d4e5f6g7h8i9j0).
+- password (선택): 업로드 시 Claim이 비밀번호로 보호된 경우, 해당 비밀번호를 제공해야 합니다.
+- tokenId (필수): 발행할 토큰의 고유 식별자입니다.
+- ItokenId (선택): 부모 토큰 ID입니다. 기본값은 0입니다.
+- to (필수): 토큰이 발행될 대상의 이더리움 주소입니다.
+- issuanceTime (필수): 발급 시각을 나타내는 Unix 타임스탬프 (초 단위).
+- expirationTime (필수): 만료 시각을 나타내는 Unix 타임스탬프 (초 단위).
+- optionalData (선택): 토큰과 함께 저장할 추가 데이터입니다.
 
-요청이 성공하면 tokenId, transactionHash, password, claimHash 값을 반환합니다. 
+##### 응답 파라미터
 
-반환된 password와 claimHash 값은 클라이언트가 저장해 두어 이후 검증에 사용할 수 있습니다.
+- essage: 발행이 성공했음을 나타내는 메시지입니다.
+- tokenId: 발행된 토큰의 ID입니다.
+- transactionHash: 블록체인 상에서의 발행 트랜잭션 해시입니다.
+- claimHash: 검증에 사용된 Claim 데이터의 해시 값입니다.
 
 #### 요청 예시
 
@@ -84,19 +157,18 @@ Unix 시간은 초 단위이며, 아래 예시에서는 발급 시각을 현재 
 curl -X POST http://localhost:3000/api/issuer/mint \
    -H "Content-Type: application/json" \
    -d '{
-      "uri": "http://example.com/credentials/90909174",
-      "tokenId": "90909176",
+      "uri": "http://3.34.178.233:3000/api/claims?claimKey=6ae5b7fce924cc551128",
       "password": "mysecretpassword",
-      "Claim": {
-         "name": "Example Credential",
-         "type": "ExampleType"
-      },
-      "to": "0x3488dDf18de8dBD52Ac9Cb95E2685185D90663F5",
-      "ItokenId": "111111120",
-      "issuanceTime": 1732068275,
-      "expirationTime": 1755655475,
-      "optionalData": "Additional information"
+      "tokenId": "123458",
+      "ItokenId": "0x0000000000000000000000000000000000000000",
+      "to": "0x17D02C217cC867401dB61291e1253DbE579dB56e",
+      "issuanceTime": 1697788800,
+      "expirationTime": 1729324800,
+      "optionalData": "Additional information",
+      "signature": "0x5c051d4ab93f09abc6dc95288187cf99c0cc0b9668d1a503da12ee0aa343feb92c1e3e9172d925a823057f864487556960533d4e702d35fca48c7de879e95e071b"
    }'
+
+
 
 # 두 번째 예시: password와 optionalData 없이
 curl -X POST http://localhost:3000/api/issuer/mint \
@@ -174,7 +246,7 @@ tokenId: 소각할 토큰의 고유 ID (필수)
 ```
 ### Credential 조회
 ```
-curl -X GET http://localhost:3000/api/issuer/credential/111111117
+curl -X GET http://localhost:3000/api/issuer/credential/123456
 ```
 
 ### TransferFrom 전송
@@ -201,6 +273,9 @@ curl -X GET http://localhost:3000/api/issuer/claimHash/90909091
 ```
 
 ## src/routes/verifierRoutes.js
+
+### 1. verify
+
 엔드포인트: GET /api/verifier/verify
 
 파라미터:
@@ -216,11 +291,15 @@ tokenId와 선택적인 password를 기반으로 MongoDB API 서버에 조회 �
 조회 결과에 pTokenId가 존재하면 부모 tokenId로도 추가 조회를 수행합니다.
 
 ```
-//비밀번호 없는 경우
-curl -X GET "http://localhost:3000/api/verifier/verify?tokenId=111111119"
+curl -X POST http://localhost:3000/api/verifier/verify \
+   -H "Content-Type: application/json" \
+   -d '{
+      "tokenId": "123458",
+      "uri": "http://3.34.178.233:3000/api/claims?claimKey=6ae5b7fce924cc551128",
+      "password": "mysecretpassword",
+      "signature": "0xf87d439ab1236daff84f55f6d69baddfe2925bad149e46cbca5ef97103984d4a3e07ce4703dda3512e67f46c22d9fda02719b254e97380ef1a141756d41bb7891b"
+   }'
 
-//있는 경우
-curl -X GET "http://localhost:3000/api/verifier/verify?tokenId=90909173&password=mysecretpassword"
 ```
 ```
 //응답 예시 
@@ -228,6 +307,14 @@ curl -X GET "http://localhost:3000/api/verifier/verify?tokenId=90909173&password
 blockoxyz@BLOCKOs-MacBook-Pro Downloads % 
 curl -X GET "http://localhost:3000/api/verifier/verify?tokenId=9999999&password=mysecretpassword"
 {"credential":{"credential":{"_id":"6720927d5b5cb2141cd03bf3","uri":"https://example.com/resource","tokenId":"9999999","pTokenId":"67890","credential":{"name":"Example Credential","type":"ExampleType"},"password":"$2b$10$dL1haEErLfzWoOta3cDz/uxDGfpDzr6Dr9BBT5bLjXAeSgvFYEql2","isDeleted":false,"__v":0}},"parentCredential":null}%  
+```
+
+### 2. plaintext
+
+검증을 위한 signature를 생성할 떄 쓸, 평문을 응답해줌
+
+```
+curl -X GET http://localhost:3000/api/verifier/plaintext
 ```
 
 ## 해쉬 무결성 체크 관련
