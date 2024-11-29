@@ -33,7 +33,6 @@ router.post('/mint', async (req, res) => {
         tokenId, 
         ItokenId, 
         password, 
-        to, 
         issuanceTime, 
         expirationTime, 
         optionalData,
@@ -41,7 +40,7 @@ router.post('/mint', async (req, res) => {
     } = req.body;
 
     // 필수값 검사
-    if (!uri || !tokenId || !to || !signature || issuanceTime === undefined || expirationTime === undefined) {
+    if (!uri || !tokenId || !signature || issuanceTime === undefined || expirationTime === undefined) {
         return res.status(400).json({ error: 'uri, tokenId, to, signature, issuanceTime, expirationTime는 필수값입니다.' });
     }
 
@@ -49,9 +48,9 @@ router.post('/mint', async (req, res) => {
         // 서명 검증
         const recoveredAddress = web3.eth.accounts.recover(uri, signature);
 
-        if (recoveredAddress.toLowerCase() !== to.toLowerCase()) {
-            return res.status(401).json({ error: '서명 검증 실패: 제공된 주소와 서명 주소가 일치하지 않습니다.' });
-        }
+        // if (recoveredAddress.toLowerCase() !== to.toLowerCase()) {
+        //     return res.status(401).json({ error: '서명 검증 실패: 제공된 주소와 서명 주소가 일치하지 않습니다.' });
+        // }
 
         // uri에서 claimKey 추출
         const uriObj = new URL(uri);
@@ -82,7 +81,7 @@ router.post('/mint', async (req, res) => {
 
         // ERC-721 컨트랙트의 certify 함수 호출, to 주소로 민팅
         const certifyTx = contract.methods.certify(
-            to,
+            recoveredAddress,
             tokenId,
             uri,
             claimHash,
@@ -105,12 +104,18 @@ router.post('/mint', async (req, res) => {
         // 트랜잭션 전송
         const receipt = await web3.eth.sendTransaction(tx);
 
-        res.status(200).json({ 
-            message: 'Mint 성공', 
-            tokenId, 
+        res.status(200).json({
+            message: 'Mint 성공',
+            tokenId,
             transactionHash: receipt.transactionHash,
-            claimHash
-        });
+            claimHash,
+            to: recoveredAddress, // 추가된 부분
+            // 필요한 메타데이터 추가
+            uri,
+            issuanceTime,
+            expirationTime,
+            optionalData: optionalDataValue,
+          });
     } catch (error) {
         console.error(error);
 
@@ -249,5 +254,24 @@ router.post('/transfer', async (req, res) => {
         res.status(500).json({ error: 'Transfer 실패' });
     }
 });
+
+// issuerRoutes.js
+
+router.post('/recover-address', (req, res) => {
+    const { message, signature } = req.body;
+  
+    if (!message || !signature) {
+      return res.status(400).json({ error: 'message와 signature는 필수값입니다.' });
+    }
+  
+    try {
+      const recoveredAddress = web3.eth.accounts.recover(message, signature);
+      res.status(200).json({ address: recoveredAddress });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: '주소 복원 실패' });
+    }
+  });
+  
 
 module.exports = router;
