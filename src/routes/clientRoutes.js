@@ -157,4 +157,70 @@ router.post('/verify-token', async (req, res) => {
     }
 });
 
+router.post('/modifyClaim', async (req, res) => {
+    const { uri, Claim: newClaim } = req.body;
+
+    // 필수값 검사
+    if (!uri || !newClaim) {
+        return res.status(400).json({ error: 'uri와 Claim은 필수값입니다.' });
+    }
+
+    try {
+        // uri에서 claimKey 추출
+        const uriObj = new URL(uri);
+        const claimKey = uriObj.searchParams.get('claimKey');
+
+        if (!claimKey) {
+            return res.status(400).json({ error: 'uri에 claimKey가 포함되어 있지 않습니다.' });
+        }
+
+        // MongoDB API 서버에 Claim 수정 요청
+        const modifyResponse = await axios.put(`${MONGODB_API_URL}/api/claims`, {
+            claimKey,
+            newClaim
+        });
+
+        res.status(200).json({ message: 'Claim 수정 성공', claimKey });
+    } catch (error) {
+        console.error(error);
+
+        if (error.response) {
+            // MongoDB API에서 온 에러를 그대로 전달
+            res.status(error.response.status).json(error.response.data);
+        } else {
+            res.status(500).json({ error: '서버 오류로 인해 수정에 실패했습니다.' });
+        }
+    }
+});
+
+// 메시지 서명 API (개인 키를 요청 시에 받음)
+router.post('/signWithPrivateKey', async (req, res) => {
+    const { message, privateKey } = req.body;
+
+    // 필수값 검사
+    if (!message || !privateKey) {
+        return res.status(400).json({ error: 'message와 privateKey는 필수값입니다.' });
+    }
+
+    try {
+        // 개인 키 형식 확인 및 접두사 처리
+        const pk = privateKey.startsWith('0x') ? privateKey : '0x' + privateKey;
+
+        // 개인 키로 계정 객체 생성
+        const account = web3.eth.accounts.privateKeyToAccount(pk);
+
+        // 메시지 서명 생성
+        const signatureObject = account.sign(message);
+
+        res.status(200).json({
+            message: '서명 생성 성공',
+            signature: signatureObject.signature,
+            address: account.address
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: '서명 생성 실패' });
+    }
+});
+
 module.exports = router;
